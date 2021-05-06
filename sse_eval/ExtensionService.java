@@ -146,7 +146,51 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
     System.out.println("script=" + header.getScript());
     // パラメータがあるか否かをチェック
     if( header.getParamsList().size() > 0 ) {
-      return responseObserver;
+      return new StreamObserver<ServerSideExtension.BundledRows>() {
+        List<List<Object>> all_args = new ArrayList<List<Object>>();
+        @Override
+        public void onNext(ServerSideExtension.BundledRows bundledRows) {
+          for(ServerSideExtension.Row row : bundledRows.getRowsList()) {
+            List<Object> script_args = new ArrayList<Object>();
+            List<Pair> zip = zipLists(header.getParamsList(), row.getDualsList());
+            for(Pair elm : zip) {
+              if( elm.datatype == ServerSideExtension.DataType.NUMERIC ||
+                  elm.datatype == ServerSideExtension.DataType.DUAL )
+                script_args.add(elm.dual.getNumData());
+              else
+                script_args.add(elm.dual.getStrData());
+            }
+            System.out.println("args=" + script_args);
+            all_args.add(script_args);
+          }
+        }
+        @Override
+        public void onError(Throwable t) {
+          t.printStackTrace();
+        }
+        @Override
+        public void onCompleted() {
+          String result = "";
+          try {
+            Binding bind = new Binding();
+            bind.setVariable("args", all_args);
+            Object retobj = (new GroovyShell(bind)).evaluate(header.getScript());
+            if(retobj instanceof Number)
+              result = ((Number)retobj).toString();
+            else if(retobj instanceof String)
+              result = (String)retobj;
+          }
+          catch (Exception ex) {
+            ex.printStackTrace();
+          }
+          ServerSideExtension.Dual dual = ServerSideExtension.Dual.newBuilder().setStrData(result).build();
+          ServerSideExtension.Row row = ServerSideExtension.Row.newBuilder().addDuals(dual).build();
+          ServerSideExtension.BundledRows.Builder builder = ServerSideExtension.BundledRows.newBuilder();
+          ServerSideExtension.BundledRows reply = builder.addRows(row).build();
+          responseObserver.onNext(reply);
+          responseObserver.onCompleted();
+        }
+      };
     }
     else {
       return new StreamObserver<ServerSideExtension.BundledRows>() {
