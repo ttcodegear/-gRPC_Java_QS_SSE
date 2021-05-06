@@ -123,3 +123,19 @@ javac qlik/sse/*.java
 javac -encoding UTF-8 SSE_Example/*.java
 
 java SSE_Example.ExtensionService
+
+[to implement evaluateScript capability with Apache Groovy instead of deprecated Nashorn/Rhino]
+
+https://groovy.apache.org/download.html
+
+https://groovy.jfrog.io/artifactory/dist-release-local/groovy-zips/apache-groovy-binary-3.0.8.zip
+
+export CLASSPATH=.:../libs/*:../libs/groovy/*
+
+set CLASSPATH=.;..\libs\*;..\libs\groovy\*
+
+[required for JDK 9 or later]
+
+export CLASSPATH=$CLASSPATH:../libs/groovy/extras-jaxb/*
+
+set CLASSPATH=%CLASSPATH%;..\libs\groovy\extras-jaxb\*
