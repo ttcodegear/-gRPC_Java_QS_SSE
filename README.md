@@ -113,3 +113,12 @@ https://repo1.maven.org/maven2/io/netty/netty-all/4.1.63.Final/
 
 export CLASSPATH=$CLASSPATH:../libs/sslcontext-kickstart-6.6.0.jar:../libs/sslcontext-kickstart-for-pem-6.6.0.jar:../libs/sslcontext-kickstart-for-netty-6.6.0.jar:../libs/bcprov-ext-jdk15on-1.68.jar:../libs/bcpkix-jdk15on-1.68.jar:../libs/slf4j-api-1.7.30.jar:../libs/slf4j-simple-1.7.30.jar:../libs/grpc-netty-1.37.0.jar:../libs/conscrypt-openjdk-2.5.2-linux-x86_64.jar:../libs/netty-all-4.1.63.Final.jar
 set CLASSPATH=.;..\libs\*
+
+[javac and run SSE Server]
+protoc --proto_path=./ --java_out=./ --plugin=protoc-gen-grpc-java=../bin/protoc-gen-grpc-java-1.37.0-linux-x86_64.exe --grpc-java_out=./ ServerSideExtension.proto
+
+javac qlik/sse/*.java
+
+javac -encoding UTF-8 SSE_Example/*.java
+
+java SSE_Example.ExtensionService
