@@ -15,6 +15,10 @@ import io.grpc.Status;
 
 import qlik.sse.*;
 
+import java.math.BigDecimal;
+import groovy.lang.Binding;
+import groovy.lang.GroovyShell;
+
 class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
   private ThreadLocal<Metadata> tl_headers = new ThreadLocal<Metadata>();
 
@@ -25,11 +29,45 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
   // Function Name | Function Type  | Argument     | TypeReturn Type
   // ScriptEval    | Scalar, Tensor | Numeric      | Numeric
   // ScriptEvalEx  | Scalar, Tensor | Dual(N or S) | Numeric
+  // https://docs.groovy-lang.org/latest/html/documentation/#_number_type_suffixes
   private StreamObserver<ServerSideExtension.BundledRows> scriptEval(
                                         ServerSideExtension.ScriptRequestHeader header,
                                         StreamObserver<ServerSideExtension.BundledRows> responseObserver) {
     System.out.println("script=" + header.getScript());
-    return responseObserver;
+    // パラメータがあるか否かをチェック
+    if( header.getParamsList().size() > 0 ) {
+      return responseObserver;
+    }
+    else {
+      return new StreamObserver<ServerSideExtension.BundledRows>() {
+        @Override
+        public void onNext(ServerSideExtension.BundledRows bundledRows) {}
+        @Override
+        public void onError(Throwable t) {}
+        @Override
+        public void onCompleted() {
+          double result = Double.NaN;
+          try {
+            Binding bind = new Binding();
+            bind.setVariable("args", new ArrayList<Object>());
+            Object retobj = (new GroovyShell(bind)).evaluate(header.getScript());
+            if(retobj instanceof Number)
+              result = ((Number)retobj).doubleValue();
+            else if(retobj instanceof String)
+              result = Double.parseDouble((String)retobj);
+          }
+          catch (Exception ex) {
+            ex.printStackTrace();
+          }
+          ServerSideExtension.Dual dual = ServerSideExtension.Dual.newBuilder().setNumData(result).build();
+          ServerSideExtension.Row row = ServerSideExtension.Row.newBuilder().addDuals(dual).build();
+          ServerSideExtension.BundledRows.Builder builder = ServerSideExtension.BundledRows.newBuilder();
+          ServerSideExtension.BundledRows reply = builder.addRows(row).build();
+          responseObserver.onNext(reply);
+          responseObserver.onCompleted();
+        }
+      };
+    }
   }
 
   // Function Name   | Function Type | Argument     | TypeReturn Type
@@ -39,7 +77,40 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
                                         ServerSideExtension.ScriptRequestHeader header,
                                         StreamObserver<ServerSideExtension.BundledRows> responseObserver) {
     System.out.println("script=" + header.getScript());
-    return responseObserver;
+    // パラメータがあるか否かをチェック
+    if( header.getParamsList().size() > 0 ) {
+      return responseObserver;
+    }
+    else {
+      return new StreamObserver<ServerSideExtension.BundledRows>() {
+        @Override
+        public void onNext(ServerSideExtension.BundledRows bundledRows) {}
+        @Override
+        public void onError(Throwable t) {}
+        @Override
+        public void onCompleted() {
+          String result = "";
+          try {
+            Binding bind = new Binding();
+            bind.setVariable("args", new ArrayList<Object>());
+            Object retobj = (new GroovyShell(bind)).evaluate(header.getScript());
+            if(retobj instanceof Number)
+              result = ((Number)retobj).toString();
+            else if(retobj instanceof String)
+              result = (String)retobj;
+          }
+          catch (Exception ex) {
+            ex.printStackTrace();
+          }
+          ServerSideExtension.Dual dual = ServerSideExtension.Dual.newBuilder().setStrData(result).build();
+          ServerSideExtension.Row row = ServerSideExtension.Row.newBuilder().addDuals(dual).build();
+          ServerSideExtension.BundledRows.Builder builder = ServerSideExtension.BundledRows.newBuilder();
+          ServerSideExtension.BundledRows reply = builder.addRows(row).build();
+          responseObserver.onNext(reply);
+          responseObserver.onCompleted();
+        }
+      };
+    }
   }
 
   private String getFunctionName(ServerSideExtension.ScriptRequestHeader header) {
