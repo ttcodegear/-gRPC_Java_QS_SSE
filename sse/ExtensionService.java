@@ -33,14 +33,14 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
 
   @Override
   public StreamObserver<ServerSideExtension.BundledRows> executeFunction(
-                                             StreamObserver<ServerSideExtension.BundledRows> responseObserver) {
+                                        StreamObserver<ServerSideExtension.BundledRows> responseObserver) {
+    System.out.println("executeFunction");
     StreamObserver<ServerSideExtension.BundledRows> sumOfColumn =
                                                     new StreamObserver<ServerSideExtension.BundledRows>() {
       List<Double> params = new ArrayList<Double>();
       @Override
       public void onNext(ServerSideExtension.BundledRows bundledRows) {
         for(ServerSideExtension.Row row : bundledRows.getRowsList()) {
-          System.out.println(row.getDuals(0).getNumData());
           params.add(row.getDuals(0).getNumData()); // row=[Col1]
         }
       }
@@ -52,8 +52,8 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
 
       @Override
       public void onCompleted() {
-        System.out.println("onCompleted");
-        ServerSideExtension.Dual dual = ServerSideExtension.Dual.newBuilder().setNumData(99.9).build();
+        double result = params.stream().mapToDouble(d -> d).sum(); // Col1 + Col1 + ...
+        ServerSideExtension.Dual dual = ServerSideExtension.Dual.newBuilder().setNumData(result).build();
         ServerSideExtension.Row row = ServerSideExtension.Row.newBuilder().addDuals(dual).build();
         ServerSideExtension.BundledRows.Builder builder = ServerSideExtension.BundledRows.newBuilder();
         ServerSideExtension.BundledRows reply = builder.addRows(row).build();
@@ -66,6 +66,17 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
                                                     new StreamObserver<ServerSideExtension.BundledRows>() {
       @Override
       public void onNext(ServerSideExtension.BundledRows bundledRows) {
+        ServerSideExtension.BundledRows.Builder response_rows = ServerSideExtension.BundledRows.newBuilder();
+        for(ServerSideExtension.Row r : bundledRows.getRowsList()) {
+          List<ServerSideExtension.Dual> duals = r.getDualsList();
+          double param1 = duals.get(0).getNumData(); // row=[Col1,Col2]
+          double param2 = duals.get(1).getNumData();
+          double result = param1 + param2;           // Col1 + Col2
+          ServerSideExtension.Dual dual = ServerSideExtension.Dual.newBuilder().setNumData(result).build();
+          ServerSideExtension.Row row = ServerSideExtension.Row.newBuilder().addDuals(dual).build();
+          response_rows.addRows(row);
+        }
+        responseObserver.onNext(response_rows.build());
       }
 
       @Override
@@ -81,9 +92,11 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
 
     int func_id = getFunctionId();
     if(func_id == 0) {
+      System.out.println("sumOfColumn");
       return sumOfColumn;
     }
     else if(func_id == 1) {
+      System.out.println("sumOfRows");
       return sumOfRows;
     }
     else {
@@ -94,7 +107,8 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
   }
 
   @Override
-  public void getCapabilities(ServerSideExtension.Empty request, StreamObserver<ServerSideExtension.Capabilities> responseObserver) {
+  public void getCapabilities(ServerSideExtension.Empty request,
+                              StreamObserver<ServerSideExtension.Capabilities> responseObserver) {
     System.out.println("getCapabilities");
     ServerSideExtension.Capabilities capabilities = ServerSideExtension.Capabilities.newBuilder()
       .setAllowScript(false)
