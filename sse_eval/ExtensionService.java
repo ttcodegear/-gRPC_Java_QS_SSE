@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Collectors;
 
 import io.grpc.Server;
@@ -26,6 +27,20 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
     tl_headers.set(headers);
   }
 
+  static class Pair {
+    Pair(ServerSideExtension.DataType datatype, ServerSideExtension.Dual dual) {
+      this.datatype = datatype;
+      this.dual = dual;
+    }
+    ServerSideExtension.DataType datatype;
+    ServerSideExtension.Dual dual;
+  }
+
+  private List<Pair> zipLists(List<ServerSideExtension.Parameter> a, List<ServerSideExtension.Dual> b) {
+    return IntStream.range(0, Math.min(a.size(), b.size()))
+             .mapToObj(i -> new Pair(a.get(i).getDataType(), b.get(i))).collect(Collectors.toList());
+  }
+
   // Function Name | Function Type  | Argument     | TypeReturn Type
   // ScriptEval    | Scalar, Tensor | Numeric      | Numeric
   // ScriptEvalEx  | Scalar, Tensor | Dual(N or S) | Numeric
@@ -36,14 +51,66 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
     System.out.println("script=" + header.getScript());
     // パラメータがあるか否かをチェック
     if( header.getParamsList().size() > 0 ) {
-      return responseObserver;
+      return new StreamObserver<ServerSideExtension.BundledRows>() {
+        @Override
+        public void onNext(ServerSideExtension.BundledRows bundledRows) {
+          List<List<Object>> all_args = new ArrayList<List<Object>>();
+          for(ServerSideExtension.Row row : bundledRows.getRowsList()) {
+            List<Object> script_args = new ArrayList<Object>();
+            List<Pair> zip = zipLists(header.getParamsList(), row.getDualsList());
+            for(Pair elm : zip) {
+              if( elm.datatype == ServerSideExtension.DataType.NUMERIC ||
+                  elm.datatype == ServerSideExtension.DataType.DUAL )
+                script_args.add(elm.dual.getNumData());
+              else
+                script_args.add(elm.dual.getStrData());
+            }
+            System.out.println("args=" + script_args);
+            all_args.add(script_args);
+          }
+          List<Object> all_results = new ArrayList<Object>();
+          for(List<Object> script_args : all_args) {
+            double result = Double.NaN;
+            try {
+              Binding bind = new Binding();
+              bind.setVariable("args", script_args);
+              Object retobj = (new GroovyShell(bind)).evaluate(header.getScript());
+              if(retobj instanceof Number)
+                result = ((Number)retobj).doubleValue();
+              else if(retobj instanceof String)
+                result = Double.parseDouble((String)retobj);
+            }
+            catch (Exception ex) {
+              ex.printStackTrace();
+            }
+            all_results.add(result);
+          }
+          ServerSideExtension.BundledRows.Builder response_rows = ServerSideExtension.BundledRows.newBuilder();
+          for(Object result : all_results) {
+            ServerSideExtension.Dual dual = ServerSideExtension.Dual.newBuilder().setNumData((Double)result).build();
+            ServerSideExtension.Row row = ServerSideExtension.Row.newBuilder().addDuals(dual).build();
+            response_rows.addRows(row);
+          }
+          responseObserver.onNext(response_rows.build());
+        }
+        @Override
+        public void onError(Throwable t) {
+          t.printStackTrace();
+        }
+        @Override
+        public void onCompleted() {
+          responseObserver.onCompleted();
+        }
+      };
     }
     else {
       return new StreamObserver<ServerSideExtension.BundledRows>() {
         @Override
         public void onNext(ServerSideExtension.BundledRows bundledRows) {}
         @Override
-        public void onError(Throwable t) {}
+        public void onError(Throwable t) {
+          t.printStackTrace();
+        }
         @Override
         public void onCompleted() {
           double result = Double.NaN;
@@ -86,7 +153,9 @@ class ExtensionServiceImpl extends ConnectorGrpc.ConnectorImplBase {
         @Override
         public void onNext(ServerSideExtension.BundledRows bundledRows) {}
         @Override
-        public void onError(Throwable t) {}
+        public void onError(Throwable t) {
+          t.printStackTrace();
+        }
         @Override
         public void onCompleted() {
           String result = "";
