@@ -115,6 +115,7 @@ export CLASSPATH=$CLASSPATH:../libs/sslcontext-kickstart-6.6.0.jar:../libs/sslco
 set CLASSPATH=.;..\libs\*
 
 [javac and run SSE Server]
+
 protoc --proto_path=./ --java_out=./ --plugin=protoc-gen-grpc-java=../bin/protoc-gen-grpc-java-1.37.0-linux-x86_64.exe --grpc-java_out=./ ServerSideExtension.proto
 
 javac qlik/sse/*.java
