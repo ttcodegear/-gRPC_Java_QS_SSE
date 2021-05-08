@@ -124,6 +124,19 @@ javac -encoding UTF-8 SSE_Example/*.java
 
 java SSE_Example.ExtensionService
 
+
+C:\Users\[user]\Documents\Qlik\Sense\Settings.ini
+
+------
+
+[Settings 7]
+
+SSEPlugin=Column,localhost:50053
+
+
+------
+
+
 [to implement evaluateScript capability with Apache Groovy instead of deprecated Nashorn/Rhino]
 
 https://groovy.apache.org/download.html
