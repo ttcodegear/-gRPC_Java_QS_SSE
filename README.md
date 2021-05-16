@@ -152,3 +152,60 @@ set CLASSPATH=.;..\libs\*;..\libs\groovy\*
 export CLASSPATH=$CLASSPATH:../libs/groovy/extras-jaxb/*
 
 set CLASSPATH=%CLASSPATH%;..\libs\groovy\extras-jaxb\*
+
+[for SSL]
+
+------
+
+...
+
+import javax.net.ssl.X509ExtendedTrustManager;
+
+import javax.net.ssl.X509ExtendedKeyManager;
+
+import io.grpc.netty.GrpcSslContexts;
+
+import io.grpc.netty.NettyServerBuilder;
+
+import io.netty.handler.ssl.SslContext;
+
+import nl.altindag.ssl.util.PemUtils;
+
+import nl.altindag.ssl.SSLFactory;
+
+import nl.altindag.ssl.util.NettySslUtils;
+
+...
+
+    X509ExtendedKeyManager keyManager = PemUtils.loadIdentityMaterial("SSE_Example_ssl/sse_server_cert.pem", "SSE_Example_ssl/sse_server_key.pem");
+
+    X509ExtendedTrustManager trustManager = PemUtils.loadTrustMaterial("SSE_Example_ssl/root_cert.pem");
+
+    SSLFactory sslFactory = SSLFactory.builder().withIdentityMaterial(keyManager).withTrustMaterial(trustManager).build();
+
+    SslContext sslContext = GrpcSslContexts.configure(NettySslUtils.forServer(sslFactory)).build();
+
+
+
+    ExtensionServiceImpl service = new ExtensionServiceImpl();
+
+    server = NettyServerBuilder.forPort(50053).addService(service).intercept(
+
+                                              new SSEInterceptor(service)).sslContext(sslContext).build().start();
+
+...
+
+------
+
+C:\Users\[user]\Documents\Qlik\Sense\Settings.ini
+
+------
+
+[Settings 7]
+
+SSEPlugin=Column,localhost:50053,C:\...\sse_Column_generated_certs\sse_Column_client_certs_used_by_qlik
+
+
+
+------
+
